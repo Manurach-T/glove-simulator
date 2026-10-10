@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ถุงมือจำลอง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap">
+<style>
+  /* ถุงมือจำลอง: ซ้ายเป็นภาพถุงมือที่นิ้วงอตามแถบเลื่อน ขวาเป็นคำที่ระบบจำได้ (มือถือเรียงเป็นแนวตั้ง)
+     ใช้ได้ 2 แบบ: เปิดผ่าน simulator.py (ใช้ knn.py ตัวจริง) หรือเปิดเป็นหน้าเว็บอย่างเดียว (จำท่าในหน้าเว็บ) */
+  :root {
+    --bg: #F3F4EE; --card: #FFFFFF; --text: #1A1A1A; --muted: #5D6058; --line: #DCDED4;
+    --accent: #2F6FD8; --ok: #1F7A3A; --unsure: #B35A00;
+    --glove: #E9E3D3; --glove-edge: #3A3A36; --glove-fold: #C9C1AC; --board: #2A5D3C; --wire: #6B6B66;
+    --font: "Kanit", "Sukhumvit Set", "Thonburi", "Leelawadee UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141513; --card: #1E201C; --text: #F1F2EC; --muted: #A6A99F; --line: #33362F;
+      --accent: #6EA0FF; --ok: #57C978; --unsure: #F2A04E;
+      --glove: #4A463C; --glove-edge: #D9D4C6; --glove-fold: #39352D; --board: #3E8A58; --wire: #9A9A92;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141513; --card: #1E201C; --text: #F1F2EC; --muted: #A6A99F; --line: #33362F;
+    --accent: #6EA0FF; --ok: #57C978; --unsure: #F2A04E;
+    --glove: #4A463C; --glove-edge: #D9D4C6; --glove-fold: #39352D; --board: #3E8A58; --wire: #9A9A92;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); font-weight: 300; }
+  main { max-width: 920px; margin: 0 auto; padding-block: 24px 48px; padding-inline: 16px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 2px; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: 15px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .stack { display: grid; gap: 14px; }
+  .layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 14px; align-items: start; }
+  @media (max-width: 680px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  #start { width: 100%; font: 400 20px var(--font); padding: 14px; border: 0; border-radius: 12px;
+           background: var(--accent); color: #fff; cursor: pointer; }
+  #start.done { background: transparent; color: var(--muted); border: 1px solid var(--line); font-size: 15px; padding: 10px; }
+  #start:focus-visible, .presets button:focus-visible, input[type=range]:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .hand svg { width: 100%; max-width: 340px; height: auto; display: block; margin: 0 auto; }
+  .hand .caption { text-align: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  #word { font-size: 72px; font-weight: 600; text-align: center; min-height: 96px; line-height: 96px; }
+  #word.ok { color: var(--ok); }
+  #word.unsure { color: var(--unsure); }
+  #status { text-align: center; color: var(--muted); font-size: 14px; }
+  .meter { height: 8px; background: var(--line); border-radius: 4px; margin: 12px 0 6px; position: relative; overflow: hidden; }
+  .meter span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ok); border-radius: 4px; }
+  .meter span.unsure { background: var(--unsure); }
+  .finger { display: grid; grid-template-columns: 48px minmax(0, 1fr) 52px; gap: 10px; align-items: center; margin: 10px 0; }
+  .finger label { font-size: 18px; }
+  .finger output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; padding-inline: 58px 62px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .presets button { font: 400 16px var(--font); padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line);
+                    background: var(--bg); color: var(--text); cursor: pointer; }
+  .note { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 16px 0 0; }
+  @media (prefers-reduced-motion: no-preference) { .bend { transition: all 120ms ease-out; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>ถุงมือจำลอง</h1>
+  <p class="sub" id="mode">แถบเลื่อนแทนการงอนิ้ว ลองทำท่าให้ถุงมือพูดออกมา</p>
+
+  <div class="stack">
+    <div class="card"><button id="start">เริ่มใช้งาน (แตะเพื่อเปิดเสียง)</button></div>
+
+    <div class="layout">
+      <div class="card hand">
+        <!-- ภาพถุงมือมองจากหลังมือขวา: แถบสีบนนิ้วคือ flex sensor ยิ่งงอยิ่งเปลี่ยนจากฟ้าเป็นส้ม
+             เฟส 1 มีเซนเซอร์แค่ โป้ง ชี้ กลาง · นิ้วนางกับก้อยขยับตามนิ้วกลาง (ไม่มีเซนเซอร์) -->
+        <svg viewBox="-24 0 264 300" role="img" aria-label="ภาพถุงมือ นิ้วงอตามค่าแถบเลื่อน">
+          <g id="hand-fingers"></g>
+          <rect x="52" y="128" width="136" height="150" rx="36" fill="var(--glove)" stroke="var(--glove-edge)" stroke-width="2.5"/>
+          <g id="hand-wires"></g>
+          <rect x="98" y="196" width="46" height="32" rx="5" fill="var(--board)" stroke="var(--glove-edge)" stroke-width="2"/>
+          <text x="121" y="217" text-anchor="middle" font-size="11" font-weight="600" fill="#FFFFFF" font-family="var(--font)">XIAO</text>
+          <text x="121" y="262" text-anchor="middle" font-size="10.5" fill="var(--muted)" font-family="var(--font)">บอร์ดบนหลังมือ</text>
+        </svg>
+        <div class="caption">แถบสีบนนิ้ว = flex sensor · ฟ้า = เหยียด ส้ม = งอ</div>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <div id="word">–</div>
+          <div class="meter"><span id="meter"></span></div>
+          <div id="status">เลื่อนแถบหรือกดท่าตัวอย่างด้านล่าง</div>
+        </div>
+
+        <div class="card" id="fingers">
+          <div class="finger"><label for="f0">โป้ง</label><input id="f0" type="range" min="0" max="4095" value="1300"><output id="o0"></output></div>
+          <div class="finger"><label for="f1">ชี้</label><input id="f1" type="range" min="0" max="4095" value="1300"><output id="o1"></output></div>
+          <div class="finger"><label for="f2">กลาง</label><input id="f2" type="range" min="0" max="4095" value="1300"><output id="o2"></output></div>
+          <div class="scale"><span>เหยียด</span><span>งอ</span></div>
+        </div>
+
+        <div class="card">
+          <div class="presets" id="presets"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">
+    ถ้าท่าที่ทำไม่ใกล้ตัวอย่างไหนเลย ระบบจะขึ้น "?" และไม่พูด เพราะแปลผิดอันตรายกว่าไม่แปล<br>
+    ปุ่ม "เริ่มใช้งาน" มีไว้เพราะ Safari บน iPhone ไม่ยอมให้หน้าเว็บพูดจนกว่าผู้ใช้จะแตะหน้าจอก่อน<br>
+    ความหมายของท่าในถุงมือนี้เราตั้งเอง ไม่ใช่ภาษามือไทยทางการ
+  </p>
+</main>
+
+<script>
+  var sliders = [document.getElementById("f0"), document.getElementById("f1"), document.getElementById("f2")];
+  var outputs = [document.getElementById("o0"), document.getElementById("o1"), document.getElementById("o2")];
+  var wordBox = document.getElementById("word");
+  var statusBox = document.getElementById("status");
+  var meter = document.getElementById("meter");
+  var startButton = document.getElementById("start");
+  var modeBox = document.getElementById("mode");
+
+  var CONFIDENCE_LIMIT = 400;   // ต้องตรงกับ simulator.py (test ตรวจให้)
+  var STEADY_MS = 500;          // ต้องค้างท่าไว้ครึ่งวินาทีก่อนพูด กันพูดรัวตอนกำลังเลื่อน
+
+  // สำเนาข้อมูลท่าจาก gestures.py ใช้ตอนเปิดหน้าเว็บโดยไม่มี simulator.py (test ตรวจว่าตรงกัน)
+  var EMBEDDED_EXAMPLES = /*EXAMPLES:START*/[
+    ["ไม่", [2310, 2405, 2398]], ["ไม่", [2285, 2440, 2420]], ["ไม่", [2330, 2380, 2365]], ["ไม่", [2260, 2415, 2440]], ["ไม่", [2300, 2450, 2390]],
+    ["หยุด", [1305, 1340, 1360]], ["หยุด", [1280, 1365, 1335]], ["หยุด", [1330, 1310, 1380]], ["หยุด", [1295, 1350, 1320]], ["หยุด", [1320, 1385, 1350]],
+    ["ใช่", [1310, 2395, 2410]], ["ใช่", [1345, 2430, 2385]], ["ใช่", [1290, 2370, 2440]], ["ใช่", [1325, 2415, 2400]], ["ใช่", [1300, 2445, 2375]],
+    ["อันนี้", [2295, 1345, 2405]], ["อันนี้", [2320, 1310, 2430]], ["อันนี้", [2270, 1370, 2390]], ["อันนี้", [2340, 1330, 2415]], ["อันนี้", [2305, 1355, 2445]],
+    ["ห้องน้ำ", [2315, 1335, 1355]], ["ห้องน้ำ", [2280, 1360, 1330]], ["ห้องน้ำ", [2335, 1320, 1375]], ["ห้องน้ำ", [2300, 1375, 1345]], ["ห้องน้ำ", [2290, 1340, 1365]]
+  ]/*EXAMPLES:END*/;
+
+  var examples = EMBEDDED_EXAMPLES;
+  var serverMode = false;       // true เมื่อเปิดผ่าน simulator.py
+  var soundOn = false;
+  var lastSpoken = "";
+  var speakTimer = null;
+  var waitingForReply = false;
+  var needAnotherCheck = false;
+
+  /* ===== ภาพถุงมือ ===== */
+  // นิ้ว: ตำแหน่งโคนนิ้ว, ความยาว, ความกว้าง, มุมเอียง, ใช้ค่าจากแถบที่เท่าไร (-1 = ตามนิ้วกลางแต่ไม่มีเซนเซอร์)
+  var FINGERS = [
+    { x: 64, y: 196, length: 78, width: 30, angle: -52, slider: 0 },   // โป้ง
+    { x: 74, y: 146, length: 100, width: 28, angle: -6, slider: 1 },   // ชี้
+    { x: 106, y: 140, length: 112, width: 28, angle: 0, slider: 2 },   // กลาง
+    { x: 138, y: 144, length: 102, width: 27, angle: 4, slider: -1 },  // นาง
+    { x: 168, y: 156, length: 80, width: 24, angle: 12, slider: -1 }   // ก้อย
+  ];
+  var STRAIGHT_VALUE = 1300;    // ค่าประมาณตอนเหยียดสุด (ดู gestures.py)
+  var BENT_VALUE = 2400;        // ค่าประมาณตอนงอสุด
+
+  function bendAmount(value) {
+    var amount = (value - STRAIGHT_VALUE) / (BENT_VALUE - STRAIGHT_VALUE);
+    return Math.max(0, Math.min(1, amount));
+  }
+
+  function svgElement(name, attributes) {
+    var element = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (var key in attributes) { element.setAttribute(key, attributes[key]); }
+    return element;
+  }
+
+  function drawHand(values) {
+    var fingerLayer = document.getElementById("hand-fingers");
+    var wireLayer = document.getElementById("hand-wires");
+    fingerLayer.textContent = "";
+    wireLayer.textContent = "";
+    for (var i = 0; i < FINGERS.length; i++) {
+      var finger = FINGERS[i];
+      var hasSensor = finger.slider >= 0;
+      var bend = bendAmount(hasSensor ? values[finger.slider] : values[2]);
+      // มองจากหลังมือ นิ้วที่งอจะดูสั้นลง และเห็นข้อนิ้วที่พับเป็นสีเข้ม
+      var visible = finger.length * (1 - 0.55 * bend);
+      var group = svgElement("g", { transform: "translate(" + finger.x + "," + finger.y + ") rotate(" + finger.angle + ")" });
+      group.appendChild(svgElement("rect", {
+        "class": "bend", x: -finger.width / 2, y: -visible, width: finger.width, height: visible + 24,
+        rx: finger.width / 2, fill: "var(--glove)", stroke: "var(--glove-edge)", "stroke-width": 2.5
+      }));
+      var fold = finger.width * 0.75 * bend;
+      group.appendChild(svgElement("rect", {
+        "class": "bend", x: -finger.width / 2 + 2, y: -visible + 2, width: finger.width - 4, height: Math.max(0, fold),
+        rx: (finger.width - 4) / 2, fill: "var(--glove-fold)"
+      }));
+      if (hasSensor) {
+        // สีแถบ: ฟ้า (เหยียด) ไล่ไปส้ม (งอ)
+        var hue = Math.round(210 - 185 * bend);
+        group.appendChild(svgElement("rect", {
+          "class": "bend", x: -4, y: -visible + 8, width: 8, height: Math.max(8, visible + 4),
+          rx: 4, fill: "hsl(" + hue + ", 78%, 52%)", stroke: "var(--glove-edge)", "stroke-width": 1
+        }));
+      }
+      fingerLayer.appendChild(group);
+      if (hasSensor) {
+        // สายจากโคนเซนเซอร์ (ปลายแถบสีที่โคนนิ้ว) ลงไปที่ขอบบนของบอร์ด
+        var radians = finger.angle * Math.PI / 180;
+        var startX = finger.x - 12 * Math.sin(radians);
+        var startY = finger.y + 12 * Math.cos(radians);
+        var endX = 108 + i * 12;
+        wireLayer.appendChild(svgElement("path", {
+          d: "M" + startX.toFixed(1) + "," + startY.toFixed(1) + " C" + startX.toFixed(1) + "," + (startY + 22).toFixed(1) +
+             " " + endX + ",176 " + endX + ",196",
+          fill: "none", stroke: "var(--wire)", "stroke-width": 1.8
+        }));
+      }
+    }
+  }
+
+  /* ===== จำท่า ===== */
+  function currentValues() {
+    var values = [];
+    for (var i = 0; i < sliders.length; i++) {
+      values.push(parseInt(sliders[i].value, 10));
+      outputs[i].textContent = sliders[i].value;
+    }
+    return values;
+  }
+
+  // จำท่าในหน้าเว็บ (ใช้ตอนไม่มี simulator.py): หาตัวอย่างที่ระยะห่างน้อยที่สุด
+  function recognizeHere(values) {
+    var bestWord = null;
+    var bestDistance = null;
+    for (var i = 0; i < examples.length; i++) {
+      var total = 0;
+      for (var f = 0; f < values.length; f++) {
+        var difference = values[f] - examples[i][1][f];
+        total = total + difference * difference;
+      }
+      var distance = Math.sqrt(total);
+      if (bestDistance === null || distance < bestDistance) {
+        bestWord = examples[i][0];
+        bestDistance = distance;
+      }
+    }
+    var confident = bestDistance <= CONFIDENCE_LIMIT;
+    return { word: confident ? bestWord : "?", confident: confident, nearest_word: bestWord, distance: Math.round(bestDistance) };
+  }
+
+  function speak(text) {
+    if (!soundOn || !window.speechSynthesis) { return; }
+    var utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "th-TH";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function show(result) {
+    wordBox.textContent = result.word;
+    wordBox.className = result.confident ? "ok" : "unsure";
+    var fill = Math.max(0, 1 - result.distance / (CONFIDENCE_LIMIT * 2));
+    meter.style.width = Math.round(fill * 100) + "%";
+    meter.className = result.confident ? "" : "unsure";
+    if (result.confident) {
+      statusBox.textContent = "ระยะห่างถึงตัวอย่างที่ใกล้สุด " + result.distance + " (เกณฑ์ " + CONFIDENCE_LIMIT + ")";
+    } else {
+      statusBox.textContent = "ไม่แน่ใจ — ใกล้ \"" + result.nearest_word + "\" ที่สุด แต่ห่างถึง " + result.distance;
+    }
+
+    clearTimeout(speakTimer);
+    if (!result.confident) {
+      lastSpoken = "";   // ผ่านช่วงไม่แน่ใจแล้ว ทำท่าเดิมอีกรอบให้พูดซ้ำได้
+      return;
+    }
+    if (result.word === lastSpoken) { return; }
+    speakTimer = setTimeout(function () {
+      lastSpoken = result.word;
+      speak(result.word);
+    }, STEADY_MS);
+  }
+
+  // โหมด simulator.py: ถามเซิร์ฟเวอร์ทีละครั้ง ถ้าเลื่อนแถบระหว่างรอคำตอบ ค่อยถามใหม่ด้วยค่าล่าสุด
+  function check() {
+    var values = currentValues();
+    drawHand(values);
+    if (!serverMode) { show(recognizeHere(values)); return; }
+    if (waitingForReply) { needAnotherCheck = true; return; }
+    waitingForReply = true;
+    fetch("/predict?v=" + values.join(","))
+      .then(function (reply) { return reply.json(); })
+      .then(show)
+      .catch(function () { statusBox.textContent = "ติดต่อ simulator.py ไม่ได้ — ยังรันอยู่หรือเปล่า?"; })
+      .finally(function () {
+        waitingForReply = false;
+        if (needAnotherCheck) { needAnotherCheck = false; check(); }
+      });
+  }
+
+  function setHand(values) {
+    for (var i = 0; i < sliders.length; i++) { sliders[i].value = values[i]; }
+    check();
+  }
+
+  function addPreset(label, values) {
+    var button = document.createElement("button");
+    button.textContent = label;
+    button.addEventListener("click", function () { setHand(values); });
+    document.getElementById("presets").appendChild(button);
+  }
+
+  // ปุ่มท่าตัวอย่าง: ตัวอย่างแรกของแต่ละคำ + ท่างอครึ่งที่ระบบต้องตอบว่าไม่แน่ใจ
+  function buildPresets() {
+    var seen = {};
+    for (var i = 0; i < examples.length; i++) {
+      var word = examples[i][0];
+      if (!seen[word]) { seen[word] = true; addPreset(word, examples[i][1]); }
+    }
+    addPreset("งอครึ่งทุกนิ้ว", [1800, 1850, 1800]);
+  }
+
+  function start(useServer) {
+    serverMode = useServer;
+    modeBox.textContent = serverMode
+      ? "แถบเลื่อนแทนการงอนิ้ว ระบบจำท่าเป็นโค้ดชุดเดียวกับที่จะลงถุงมือจริง"
+      : "แถบเลื่อนแทนการงอนิ้ว ระบบจำท่าแบบเดียวกับถุงมือจริง (ฉบับเปิดบนเว็บ)";
+    buildPresets();
+    check();
+  }
+
+  for (var i = 0; i < sliders.length; i++) { sliders[i].addEventListener("input", check); }
+
+  startButton.addEventListener("click", function () {
+    soundOn = true;
+    speak("พร้อมแล้ว");
+    startButton.textContent = "เปิดเสียงแล้ว";
+    startButton.className = "done";
+  });
+
+  // ลองถาม simulator.py ก่อน ถ้าไม่มี (เปิดไฟล์ตรง ๆ หรือเปิดจากลิงก์ออนไลน์) ใช้ข้อมูลที่ฝังไว้
+  drawHand(currentValues());
+  fetch("/gestures")
+    .then(function (reply) {
+      if (!reply.ok) { throw new Error("no simulator"); }
+      return reply.json();
+    })
+    .then(function (fromServer) { examples = fromServer; start(true); })
+    .catch(function () { start(false); });
+</script>
+</body>
+</html>
